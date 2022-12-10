@@ -9,6 +9,9 @@ using System.Reflection;
 using Newtonsoft.Json.Linq;
 using CatBot.Source.Code.Modules;
 using CatBot.Source.Code.Modules.Fun;
+using MongoDB.Driver;
+using System.IO;
+using CatBot.Source.Code.Modules.Fun.Economy.DataBase;
 
 namespace CatBot;
 
@@ -17,8 +20,15 @@ public static class Catbot
     public static ILoggerFactory Logger = LoggerFactory.Create((builder) => builder.AddConsole());
     public static ILogger Log = Logger.CreateLogger("CatBot Thinks:");
 
+    public static MongoClientSettings settings = MongoClientSettings.FromConnectionString(File.ReadAllText("../../../Source/Data/mongo_config.txt"));
+    public static MongoClient client = new MongoClient(settings);
+    public static IMongoDatabase database = client.GetDatabase("CatBotCLUSTER");
+    public static IMongoCollection<UserModel> collection = database.GetCollection<UserModel>("users");
+
     public static async Task Main(string[] args)
     {
+        settings.ServerApi = new ServerApi(ServerApiVersion.V1);
+
         dynamic content = Configs.LoadConfig("../../../Source/Data/config.json");
         string token = content.token;
 
@@ -26,7 +36,7 @@ public static class Catbot
         {
             Token = token,
             TokenType = TokenType.Bot,
-            LoggerFactory = Logger
+            MinimumLogLevel= LogLevel.Debug,
         });
 
         Client.UseSlashCommands().RegisterCommands(Assembly.GetExecutingAssembly());

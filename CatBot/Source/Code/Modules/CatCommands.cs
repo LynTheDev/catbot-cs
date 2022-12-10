@@ -6,6 +6,8 @@ using DSharpPlus.SlashCommands;
 using Microsoft.Extensions.Logging;
 using RestSharp;
 using System.Net;
+using System.IO;
+using CatBot.Source.Code.Modules.Fun.Economy.DataBase;
 
 namespace CatBot.Source.Code.Modules;
 

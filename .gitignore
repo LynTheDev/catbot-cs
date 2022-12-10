@@ -5,3 +5,5 @@ Catbot/bin/
 Catbot/obj/
 
 Catbot/Source/Data/config.json
+
+Catbot/Source/Data/mongo_config.txt
