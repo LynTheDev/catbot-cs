@@ -4,6 +4,4 @@ Catbot/bin/
 
 Catbot/obj/
 
-Catbot/Source/Data/config.json
-
-Catbot/Source/Data/mongo_config.txt
+Catbot/Source/Data/secret_vars.cs
