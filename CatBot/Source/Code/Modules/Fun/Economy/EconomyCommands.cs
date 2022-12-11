@@ -17,26 +17,21 @@ namespace CatBot.Source.Code.Modules.Fun.Economy;
 
 public class EconomyCommands : ApplicationCommandModule
 {
-    public static async Task RemoveOne(UserModel user, InteractionContext ctx)
+    public static void RemoveOne(UserModel user, InteractionContext ctx)
     {
         user.TimeLeft -= 1;
-        await Catbot.collection.FindOneAndUpdateAsync<UserModel>(u => u.DiscordID == ctx.Member.Id,
-                Builders<UserModel>.Update.Set(u => u.TimeLeft, user.TimeLeft));
+        Console.Write($"{user.TimeLeft} ");
     }
 
     public async Task Timer(PeriodicTimer timer, UserModel user, InteractionContext ctx)
     {
         while (await timer.WaitForNextTickAsync())
         {
-            await RemoveOne(user, ctx);
+            RemoveOne(user, ctx);
 
             if (user.TimeLeft == 0)
             {
                 await SwitchCooldown(false, ctx);
-
-                await Catbot.collection.FindOneAndUpdateAsync<UserModel>(u => u.DiscordID == ctx.Member.Id,
-                    Builders<UserModel>.Update.Set(u => u.TimeLeft, 30));
-
                 break;
             }
 
@@ -44,14 +39,22 @@ public class EconomyCommands : ApplicationCommandModule
     }
     public static async Task AddNewUser(InteractionContext ctx)
     {
-        var newUser = new UserModel { 
-            DiscordID = ctx.Member.Id, 
-            PatAmount = 0, MaxPats = 15, 
-            MinPats = 0, 
+        var newUser = new UserModel {
+            DiscordID = ctx.Member.Id,
+            PatAmount = 0, MaxPats = 15,
+            MinPats = 0,
             IsCooldown = false,
-            TimeLeft = 30
+            TimeLeft = 30,
         };
         await Catbot.collection.InsertOneAsync(newUser);
+    }
+
+    public static async Task CheckUser(InteractionContext ctx, DiscordUser member)
+    {
+        UserModel user = Catbot.collection.Find(u => u.DiscordID.Equals(member.Id)).FirstOrDefault();
+
+        if (user is null)
+            await AddNewUser(ctx);
     }
 
     public static void CheckPats(int patToGain, DiscordEmbedBuilder PatEmbed, InteractionContext ctx)
@@ -101,7 +104,11 @@ public class EconomyCommands : ApplicationCommandModule
         {
             Catbot.Log.Log(Microsoft.Extensions.Logging.LogLevel.Information, "User is not part of the database!");
 
-            var newUser = new UserModel { DiscordID = ctx.Member.Id, PatAmount = 0, MaxPats = 15, MinPats = 0, IsCooldown = false, TimeLeft = 30 };
+            var newUser = new UserModel {
+                DiscordID = ctx.Member.Id, PatAmount = 0, 
+                MaxPats = 15, MinPats = 0,
+                IsCooldown = false, TimeLeft = 30
+            };
 
             if (newUser.IsCooldown)
             {
@@ -163,10 +170,7 @@ public class EconomyCommands : ApplicationCommandModule
     [SlashCommand("patinfo", "check how many pats you have!")]
     public async Task PatCountCommand(InteractionContext ctx)
     {
-        UserModel user = Catbot.collection.Find(u => u.DiscordID.Equals(ctx.Member.Id)).FirstOrDefault();
-
-        if (user is null)
-            await AddNewUser(ctx);
+        await CheckUser(ctx, ctx.Member);
 
         UserModel users = Catbot.collection.Find(u => u.DiscordID.Equals(ctx.Member.Id)).FirstOrDefault();
 
@@ -186,5 +190,68 @@ public class EconomyCommands : ApplicationCommandModule
         await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder()
                 .AddEmbed(PatEmbed));
 
+    }
+
+    [SlashCommand("givepats", "give pats to a user!")]
+    public static async Task GivePatCommand(InteractionContext ctx, [Option("user", "User to give pats to")] DiscordUser member, [Option("patcount", "pats to give")] long patNum) 
+    {
+        await CheckUser(ctx, ctx.Member);
+
+        UserModel user = Catbot.collection.Find(u => u.DiscordID.Equals(ctx.Member.Id)).FirstOrDefault();
+        UserModel givenUser = Catbot.collection.Find(u => u.DiscordID.Equals(member.Id)).FirstOrDefault();
+
+        if (user.PatAmount < patNum)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder()
+                .WithContent("You don't have enough pats for that!"));
+        return;
+        }
+
+        if(ctx.Member.Id == member.Id)
+        {
+            await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder()
+                    .WithContent("You can't just do that!"));
+        return;
+        }
+
+        var newPats = user.PatAmount - patNum;
+        await Catbot.collection.FindOneAndUpdateAsync<UserModel>(u => u.DiscordID == ctx.Member.Id,
+                Builders<UserModel>.Update.Set(u => u.PatAmount, newPats));
+
+        DiscordEmbedBuilder GiveEmbed = new DiscordEmbedBuilder
+        {
+            Color = DiscordColor.Blue,
+            Title = $"{DiscordEmoji.FromName(Catbot.Client, ":frog_cute:")} Aww! How Sweet!"
+        };
+
+        GiveEmbed.WithThumbnail(member.AvatarUrl);
+        GiveEmbed.Timestamp = DateTime.Now;
+        GiveEmbed.WithFooter($"{ctx.Member.DisplayName}#{ctx.Member.Discriminator}", ctx.Member.AvatarUrl);
+        GiveEmbed.AddField($"{ctx.Member.DisplayName} has given", $"{patNum} {DiscordEmoji.FromName(Catbot.Client, ":pat_pat:")} to {member.Mention}");
+
+        if (givenUser is null)
+        {
+            var newUser = new UserModel
+            {
+                DiscordID = member.Id, PatAmount = 0,
+                MaxPats = 15, MinPats = 0,
+                IsCooldown = false, TimeLeft = 30,
+            };
+
+            await Catbot.collection.InsertOneAsync(newUser);
+
+            var givenNewPats = newUser.PatAmount + patNum;
+            await Catbot.collection.FindOneAndUpdateAsync<UserModel>(u => u.DiscordID == member.Id,
+                Builders<UserModel>.Update.Set(u => u.PatAmount, givenNewPats));
+        }
+        else
+        {
+            var givenNewPats = givenUser.PatAmount + patNum;
+            await Catbot.collection.FindOneAndUpdateAsync<UserModel>(u => u.DiscordID == member.Id,
+                Builders<UserModel>.Update.Set(u => u.PatAmount, givenNewPats));
+        }
+
+        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder()
+                .AddEmbed(GiveEmbed));
     }
 }

@@ -13,6 +13,7 @@ namespace CatBot.Source.Code.Modules;
 
 public class CatCommands : ApplicationCommandModule
 { 
+
     [SlashCommand("catboy", "sends an image of a catboy")]
     public async Task CatboyCommand(InteractionContext ctx)
     {
