@@ -14,6 +14,10 @@ using System.IO;
 
 using CatBot.Source.Code.Modules.Fun.Economy.DataBase;
 using CatBot.Source.Data;
+using DSharpPlus.Interactivity.Extensions;
+using DSharpPlus.Interactivity;
+using DSharpPlus.Interactivity.Enums;
+using System.Threading;
 
 namespace CatBot;
 
@@ -40,14 +44,31 @@ public static class Catbot
         Client.UseSlashCommands().RegisterCommands(Assembly.GetExecutingAssembly());
         Log.Log(LogLevel.Information, "Commands loaded (surprisingly...)");
 
+        Client.UseInteractivity(new InteractivityConfiguration()
+        {
+            AckPaginationButtons = true,
+            Timeout = TimeSpan.FromSeconds(30)
+        });
+
         await Client.ConnectAsync();
-        Log.Log(LogLevel.Information, "{} is ready", Client);
+        Log.Log(LogLevel.Information, "{} is ready", Client.CurrentApplication.Name);
 
         var users = await collection.FindAsync(_ => true);
         foreach (var user in users.ToList())
             await collection.FindOneAndUpdateAsync<UserModel>(_ => true,
                     Builders<UserModel>.Update.Set(u => u.IsCooldown, false));
 
-        await Task.Delay(-1);
+        using (SemaphoreSlim cancelSem = new(0, 1))
+        {
+            Console.CancelKeyPress += (_, e) =>
+            {
+                cancelSem.Release();
+                e.Cancel = true;
+            };
+            await cancelSem.WaitAsync();
+        }
+
+        await Client.DisconnectAsync();
+        Log.Log(LogLevel.Information, "Bye bye bot lol");
     }
 }
