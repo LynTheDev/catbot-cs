@@ -45,7 +45,7 @@ public static class DatabaseHelper
         {
             await Catbot.collection.InsertOneAsync(NewUser(ctx));
             var newCheck = Catbot.collection.Find(u => u.DiscordID == member.Id).FirstOrDefault();
-            return newCheck;
+        return newCheck;
         }
             
 

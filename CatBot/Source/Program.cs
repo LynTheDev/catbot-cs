@@ -54,9 +54,9 @@ public static class Catbot
         Log.Log(LogLevel.Information, "{} is ready", Client.CurrentApplication.Name);
 
         var users = await collection.FindAsync(_ => true);
-        foreach (var user in users.ToList())
-            await collection.FindOneAndUpdateAsync<UserModel>(_ => true,
-                    Builders<UserModel>.Update.Set(u => u.IsCooldown, false));
+            foreach (var user in users.ToList())
+                await collection.FindOneAndUpdateAsync<UserModel>(_ => true,
+                        Builders<UserModel>.Update.Set(u => u.IsCooldown, false));
 
         using (SemaphoreSlim cancelSem = new(0, 1))
         {
